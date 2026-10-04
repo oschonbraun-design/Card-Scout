@@ -1,16 +1,18 @@
-# Card Scout v0.4 — SerpApi Edition
+# Card Scout v0.5
+Free-text eBay sports-card discovery using SerpApi.
 
-Card Scout discovers unusually cheap **active eBay sports-card listings**. It does not claim to know sold-market value; verify exact sold comps before buying.
+## Render
+Build: `pip install -r requirements.txt`
+Start: `gunicorn webapp:app`
+Environment: `SERPAPI_API_KEY` (secret)
 
-## Render setup
-
-- Build command: `pip install -r requirements.txt`
-- Start command: `gunicorn webapp:app`
-- Environment variable: `SERPAPI_API_KEY` = your private SerpApi key
-- Do **not** put the API key in GitHub.
-
-## Free-plan design
-
-A scan searches one selected player and uses one SerpApi eBay search. This is intentional to conserve the free monthly search allowance. Results are sorted by eBay's newly-listed order, filtered to the chosen price range, then compared against the active-listing median for that search. Listings at least 12% below that median can surface as candidates.
-
-The score is a discovery signal, not a valuation. Different parallels, grades, autos, numbered cards, lots, and variants can have very different values. Always inspect the listing and verify sold comps manually.
+## v0.5
+- Search any player or eBay-style sports-card query.
+- Up to 200 results requested per search.
+- Grid shows many listings at once.
+- Newest, lowest-price, or ending-soon sorting.
+- $75–$150 defaults remain editable.
+- Shows landed price, shipping, condition, seller feedback, listing date when supplied.
+- Removes the misleading cross-card active-median/deal percentage.
+- One submitted search = one SerpApi search request.
+- Always verify exact sold comps before buying.
