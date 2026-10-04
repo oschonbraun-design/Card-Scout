@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse, json, time
 from pathlib import Path
-from cardscanner.ebay import EbayBrowseClient
+from cardscanner.serpapi_ebay import SerpApiEbayClient
 from cardscanner.identity import parse_identity
 from cardscanner.comps import CsvCompProvider, comp_stats
 from cardscanner.scoring import score_deal
@@ -12,7 +12,7 @@ def load_cfg(path):
     with open(path, encoding="utf-8") as f: return json.load(f)
 
 def scan(cfg, db_path, comps_path):
-    client=EbayBrowseClient(cfg["marketplace"]); db=connect(db_path)
+    client=SerpApiEbayClient(); db=connect(db_path)
     comps=CsvCompProvider(comps_path,cfg["max_comp_age_days"])
     candidates=alerts=0
     for p in cfg["players"]:
