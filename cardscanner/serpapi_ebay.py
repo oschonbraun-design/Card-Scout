@@ -21,11 +21,11 @@ class SerpApiEbayClient:
         sop={"newest":"10","lowest":"15","ending":"1"}.get(sort,"10")
         params={"engine":"ebay","ebay_domain":"ebay.com","_nkw":query,
                 "_ipg":str(min(200,max(25,int(limit)))),"_sop":sop,
-                "api_key":self.api_key}
+                "api_key":self.api_key,"_udlo":str(min_price),"_udhi":str(max_price)}
         if buying_format == "bin": params["buying_format"]="BIN"
-        elif buying_format == "auction": params["buying_format"]="AUCTION"
+        elif buying_format == "auction": params["buying_format"]="Auction"
         req=Request("https://serpapi.com/search.json?"+urlencode(params),
-                    headers={"User-Agent":"CardScout/0.6"})
+                    headers={"User-Agent":"CardScout/0.8"})
         with urlopen(req,timeout=35) as r: obj=json.load(r)
         if obj.get("error"): raise RuntimeError(obj["error"])
         out=[]
@@ -46,7 +46,9 @@ class SerpApiEbayClient:
                 "url":x.get("link",""), "image":x.get("thumbnail",""),
                 "price":round(p,2),"shipping":round(ship,2),"total":round(total,2),
                 "condition":x.get("condition",""),"seller":seller.get("username",""),
-                "buying_format":x.get("buying_format",""),"bids":x.get("bids",""),"time_left":x.get("time_left",""),
+                "buying_format":x.get("buying_format",""),"buying_format_text":x.get("buying_format_text",""),
+                "bids":(x.get("bids") or {}).get("count") if isinstance(x.get("bids"),dict) else x.get("bids",""),
+                "time_left":(x.get("bids") or {}).get("time_left","") if isinstance(x.get("bids"),dict) else x.get("time_left",""),
                 "best_offer":bool(x.get("best_offer")) or ("best offer" in str(x).lower()),
                 "feedback":feedback,"reviews":reviews,"listing_date":x.get("listing_date",""),
                 "new_listing":bool(x.get("new_listing")),"sponsored":bool(x.get("sponsored")),

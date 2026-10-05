@@ -38,15 +38,15 @@ def rank_opportunities(items, player):
         y["excluded"]=any(w in low for w in BAD_WORDS)
         enriched.append(y)
     for x in enriched:
-        peers=[y for y in enriched if y is not x and not y["excluded"] and similarity(x["fp"],y["fp"])>=0.72]
+        peers=[y for y in enriched if y is not x and not y["excluded"] and similarity(x["fp"],y["fp"])>=0.58]
         prices=[y["total"] for y in peers]
         x["peer_count"]=len(prices); x["reference"]=None; x["opportunity_score"]=None; x["discount"]=None
-        if len(prices)>=2 and not x["excluded"]:
+        if len(prices)>=1 and not x["excluded"]:
             ref=statistics.median(prices)
             disc=(ref-x["total"])/ref*100 if ref else 0
             # Conservative: only rank positive outliers; confidence and peer count cap the score.
             confidence=min(1.0,x["fp"]["confidence"])
-            support=min(1.0,len(prices)/5)
-            score=max(0,min(100,disc*2.2*confidence*(0.65+0.35*support)))
+            support=min(1.0,len(prices)/4)
+            score=max(0,min(100,disc*2.5*confidence*(0.60+0.40*support)))
             x["reference"]=round(ref,2); x["discount"]=round(disc,1); x["opportunity_score"]=round(score)
     return sorted(enriched,key=lambda x:(x["opportunity_score"] is not None,x["opportunity_score"] or -1,-x["total"]),reverse=True)
