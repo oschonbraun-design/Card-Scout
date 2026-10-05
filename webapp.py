@@ -3,13 +3,14 @@ from flask import Flask, render_template_string, request
 from cardscanner.serpapi_ebay import SerpApiEbayClient
 from cardscanner.opportunity import rank_opportunities
 from cardscanner.auction import rank_auctions
+from cardscanner.soldcomps import comp_query, ebay_sold_url, evaluate
 
 app=Flask(__name__)
 
 HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout</title><style>
 *{box-sizing:border-box}body{font-family:Inter,ui-sans-serif,system-ui;margin:0;background:#090d12;color:#edf2f7}.wrap{max-width:1500px;margin:auto;padding:26px}.muted{color:#8d9aaa}.filters,.notice{background:#111821;border:1px solid #253142;border-radius:16px;padding:16px;margin:14px 0}.filters{display:flex;gap:9px;flex-wrap:wrap}.search{min-width:300px;flex:1}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:14px}.card{background:#111821;border:1px solid #253142;border-radius:16px;padding:14px;display:flex;flex-direction:column}.card img{width:100%;height:210px;object-fit:contain;background:#fff;border-radius:12px}.price{font-size:25px;font-weight:850;margin-top:auto}.meta{font-size:13px;color:#aab5c3;margin:5px 0}.pill{display:inline-block;padding:4px 8px;background:#1b2431;border-radius:999px;margin:3px 3px 3px 0;font-size:12px}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}a.btn{display:inline-block;background:#edf2f7;color:#0b0e13;padding:10px 13px;border-radius:10px;text-decoration:none;font-weight:750;margin-top:8px}input,select,button{padding:10px;border-radius:9px;border:1px solid #39465b;background:#0d131c;color:white}button{cursor:pointer;font-weight:750}.brand{font-size:12px;color:#637084;margin-top:16px}h1{margin-bottom:3px}.topline{display:flex;justify-content:space-between;gap:10px;align-items:center}.sponsored{opacity:.68}
 </style></head><body><div class="wrap">
-<h1>Card Scout <span class="pill">v0.8</span></h1>
+<h1>Card Scout <span class="pill">v0.9</span></h1>
 <div class="muted">Search any player. Find newly listed Buy It Now cards you can purchase immediately.</div>
 <form class="filters">
 <input class="search" name="q" required placeholder="Type any player, e.g. Drake Maye" value="{{q}}">
@@ -33,6 +34,7 @@ HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-
 {% if x.seller %}<div class="meta">Seller: <b>{{x.seller}}</b>{% if x.feedback is not none %} · {{x.feedback}}% positive{% endif %}{% if x.reviews is not none %} · {{x.reviews}} feedback{% endif %}</div>{% endif %}
 {% if x.quantity_sold %}<div class="meta">{{x.quantity_sold}}</div>{% endif %}
 <a class="btn" target="_blank" rel="noopener" href="{{x.url}}">View on eBay</a>
+<a class="btn" href="/comp?title={{x.title|urlencode}}&price={{x.total}}&q={{q|urlencode}}">Analyze eBay Sold Comps</a>
 </div>{% endfor %}
 </div>
 <div class="brand">Powered by SerpApi eBay Search · Active listings are not sold comps · Card Scout does not calculate market value.</div>
@@ -66,6 +68,33 @@ def home():
     labels={"opportunity":"Best Opportunities","newest":"Newest first","lowest":"Lowest price","ending":"Ending soon"}
     flabels={"bin":"Buy It Now","auction":"Auctions","all":"All listings"}
     return render_template_string(HTML,q=q,minp=int(minp),maxp=int(maxp),sort=sort,sort_label=labels[sort],buying_format=buying_format,format_label=flabels[buying_format],items=items,count=len(items),error=error,searched=searched)
+
+
+COMP_HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout Comp Check</title><style>
+body{font-family:Inter,system-ui;background:#090d12;color:#edf2f7;margin:0}.wrap{max-width:1050px;margin:auto;padding:26px}.box,.sale{background:#111821;border:1px solid #253142;border-radius:15px;padding:16px;margin:12px 0}.big{font-size:30px;font-weight:850}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}.muted{color:#94a0af}a.btn{display:inline-block;background:#edf2f7;color:#0b0e13;padding:10px 13px;border-radius:9px;text-decoration:none;font-weight:750;margin:5px 5px 5px 0}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}</style></head><body><div class="wrap">
+<h1>Sold Comp Check <small>v0.9</small></h1><div class="box"><b>{{title}}</b><p>Listing total: <b>${{"%.2f"|format(price)}}</b></p>
+{% if result.median is not none %}<div class="big {% if result.discount>=20 %}good{% elif result.discount>=10 %}warn{% else %}bad{% endif %}">{{result.discount}}% below matched sold reference</div><p>Matched sold median: <b>${{result.median}}</b> · {{result.matches|length}} matches · confidence {{result.confidence}}%</p>
+{% else %}<div class="big warn">Manual comp check required</div><p>Card Scout could not find sufficiently similar sold results to calculate a safe reference.</p>{% endif %}
+{% if result.status=='strong' %}<p class="good"><b>Strong candidate:</b> at least 3 matched sales, ≥80% match confidence, and ≥20% below the matched sold median. Still verify before buying.</p>{% elif result.status=='possible' %}<p class="warn"><b>Possible opportunity.</b> Verify the sales below before buying.</p>{% elif result.status=='average' %}<p class="bad"><b>Not clearly below comps.</b> This appears average/expensive relative to the matched sold results.</p>{% endif %}
+<a class="btn" target="_blank" href="{{sold_url}}">Open Exact eBay Sold Search</a><a class="btn" target="_blank" href="https://130point.com/sales/">Verify on 130point</a><a class="btn" href="/">Back to Card Scout</a></div>
+{% if error %}<div class="box bad">{{error}}</div>{% endif %}
+<div class="grid">{% for x in result.matches %}<div class="sale"><b>{{x.title}}</b><p>${{"%.2f"|format(x.total)}}{% if x.sold_date %} · {{x.sold_date}}{% endif %}</p><p class="muted">Identity similarity: {{x.similarity}}%</p>{% if x.url %}<a class="btn" target="_blank" href="{{x.url}}">View sold result</a>{% endif %}</div>{% endfor %}</div>
+<p class="muted">Sold prices shown by eBay/SerpApi may not reveal an accepted Best Offer amount. Card Scout therefore treats this as a reference, not guaranteed market value.</p></div></body></html>"""
+
+@app.get("/comp")
+def comp():
+    title=request.args.get("title","").strip(); q=request.args.get("q","").strip()
+    try: price=float(request.args.get("price","0"))
+    except: price=0
+    query=comp_query(title); sold_url=ebay_sold_url(query); error=""
+    result={"status":"manual","matches":[],"median":None,"discount":None,"confidence":0}
+    if title and price>0 and os.getenv("SERPAPI_API_KEY"):
+        try:
+            rows=SerpApiEbayClient().sold_search(query,100)
+            result=evaluate(title,price,rows,q or title)
+        except Exception as e:
+            error="Automatic sold search is unavailable right now. Use the exact eBay Sold Search button below. "+str(e)
+    return render_template_string(COMP_HTML,title=title,price=price,result=result,sold_url=sold_url,error=error)
 
 @app.get("/health")
 def health(): return {"ok":True,"version":"0.5","serpapi_configured":bool(os.getenv("SERPAPI_API_KEY"))}

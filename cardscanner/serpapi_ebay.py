@@ -61,3 +61,23 @@ class SerpApiEbayClient:
             if k in seen: continue
             seen.add(k); clean.append(x)
         return clean
+
+    def sold_search(self, query, limit=100):
+        params={"engine":"ebay","ebay_domain":"ebay.com","_nkw":query,
+                "_ipg":str(min(200,max(25,int(limit)))),"show_only":"Sold",
+                "api_key":self.api_key}
+        req=Request("https://serpapi.com/search.json?"+urlencode(params),
+                    headers={"User-Agent":"CardScout/0.9"})
+        with urlopen(req,timeout=35) as r: obj=json.load(r)
+        if obj.get("error"): raise RuntimeError(obj["error"])
+        out=[]
+        for x in obj.get("organic_results",[]):
+            price=x.get("price") or {}
+            if not isinstance(price,dict) or price.get("extracted") is None: continue
+            try: p=float(price["extracted"])
+            except (TypeError,ValueError): continue
+            ship=self._shipping(x.get("shipping"))
+            out.append({"title":x.get("title",""),"price":round(p,2),
+                        "shipping":round(ship,2),"total":round(p+ship,2),
+                        "url":x.get("link",""),"sold_date":x.get("sold_date") or x.get("listing_date","")})
+        return out
