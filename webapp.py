@@ -1,102 +1,65 @@
 import os
+from urllib.parse import urlencode
 from flask import Flask, render_template_string, request
 from cardscanner.serpapi_ebay import SerpApiEbayClient
-from cardscanner.opportunity import rank_opportunities
 from cardscanner.auction import rank_auctions
-from cardscanner.soldcomps import comp_query, ebay_sold_url, evaluate
+from cardscanner.lots import rank_lots
 
 app=Flask(__name__)
 
-HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout</title><style>
-*{box-sizing:border-box}body{font-family:Inter,ui-sans-serif,system-ui;margin:0;background:#090d12;color:#edf2f7}.wrap{max-width:1500px;margin:auto;padding:26px}.muted{color:#8d9aaa}.filters,.notice{background:#111821;border:1px solid #253142;border-radius:16px;padding:16px;margin:14px 0}.filters{display:flex;gap:9px;flex-wrap:wrap}.search{min-width:300px;flex:1}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:14px}.card{background:#111821;border:1px solid #253142;border-radius:16px;padding:14px;display:flex;flex-direction:column}.card img{width:100%;height:210px;object-fit:contain;background:#fff;border-radius:12px}.price{font-size:25px;font-weight:850;margin-top:auto}.meta{font-size:13px;color:#aab5c3;margin:5px 0}.pill{display:inline-block;padding:4px 8px;background:#1b2431;border-radius:999px;margin:3px 3px 3px 0;font-size:12px}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}a.btn{display:inline-block;background:#edf2f7;color:#0b0e13;padding:10px 13px;border-radius:10px;text-decoration:none;font-weight:750;margin-top:8px}input,select,button{padding:10px;border-radius:9px;border:1px solid #39465b;background:#0d131c;color:white}button{cursor:pointer;font-weight:750}.brand{font-size:12px;color:#637084;margin-top:16px}h1{margin-bottom:3px}.topline{display:flex;justify-content:space-between;gap:10px;align-items:center}.sponsored{opacity:.68}
-</style></head><body><div class="wrap">
-<h1>Card Scout <span class="pill">v0.9</span></h1>
-<div class="muted">Search any player. Find newly listed Buy It Now cards you can purchase immediately.</div>
-<form class="filters">
-<input class="search" name="q" required placeholder="Type any player, e.g. Drake Maye" value="{{q}}">
-<input name="min" type="number" min="0" step="1" value="{{minp}}" style="width:95px" title="Minimum total price">
-<input name="max" type="number" min="1" step="1" value="{{maxp}}" style="width:95px" title="Maximum total price">
-<select name="format"><option value="bin" {% if buying_format=='bin' %}selected{% endif %}>Buy It Now</option><option value="auction" {% if buying_format=='auction' %}selected{% endif %}>Auctions</option><option value="all" {% if buying_format=='all' %}selected{% endif %}>All listings</option></select>
-<select name="sort"><option value="opportunity" {% if sort=='opportunity' %}selected{% endif %}>Best Opportunities</option><option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest first</option><option value="lowest" {% if sort=='lowest' %}selected{% endif %}>Lowest price</option><option value="ending" {% if sort=='ending' %}selected{% endif %}>Ending soon</option></select>
-<button>Search eBay</button>
-</form>
-<div class="notice"><b>Best Opportunities:</b> compares only closely matched active listings (grade, auto status, year/product/parallel/numbering when identifiable) and ranks unusually low BINs. <b>This is still not a sold comp or guaranteed deal.</b>  Buy It Now is the default so unfinished auctions do not look artificially cheap. Use <b>Newest first</b> to catch fresh BIN listings, then verify the exact card on 130point before buying. Auction mode is separate and is best used with <b>Ending soon</b>.</div>
-{% if error %}<div class="notice bad">{{error}}</div>{% endif %}
-{% if searched and not error %}<div class="notice"><b>{{count}} listings shown</b> for “{{q}}” in the ${{minp}}–${{maxp}} total-price range. Format: {{format_label}} · Sort: {{sort_label}}. One submitted search = one SerpApi search.</div>{% endif %}
-<div class="grid">
-{% for x in items %}<div class="card {% if x.sponsored %}sponsored{% endif %}">
-{% if x.image %}<img src="{{x.image}}" loading="lazy" alt="listing image">{% endif %}
-<h3>{{x.title}}</h3>
-<div>{% if buying_format=='auction' and x.auction_score is defined %}<span class="pill warn">Auction {{x.auction_score}}/100</span>{% elif x.opportunity_score is defined and x.opportunity_score is not none %}<span class="pill good">Opportunity {{x.opportunity_score}}/100</span>{% endif %}{% if x.new_listing %}<span class="pill good">New listing</span>{% endif %}{% if x.best_offer %}<span class="pill good">Best Offer</span>{% endif %}{% if x.buying_format %}<span class="pill">{{x.buying_format}}</span>{% endif %}{% if x.sponsored %}<span class="pill">Sponsored</span>{% endif %}{% if x.condition %}<span class="pill">{{x.condition}}</span>{% endif %}</div>
-<div class="price">${{"%.2f"|format(x.total)}}</div>
-<div class="meta">${{"%.2f"|format(x.price)}} item{% if x.shipping %} + ${{"%.2f"|format(x.shipping)}} shipping{% else %} + free/detected $0 shipping{% endif %}</div>{% if x.reference is not none %}<div class="meta good">Similar-active reference: ${{"%.2f"|format(x.reference)}} · {{x.discount}}% lower · {{x.peer_count}} comparable listings</div>{% elif sort=='opportunity' %}<div class="meta">Not enough closely comparable active listings to score safely.</div>{% endif %}
-{% if x.listing_date %}<div class="meta">Listed: {{x.listing_date}}</div>{% endif %}{% if x.time_left %}<div class="meta warn"><b>Time left: {{x.time_left}}</b>{% if x.bids is not none %} · {{x.bids}} bids{% endif %}{% if x.price_percentile is defined %} · low-price strength {{x.price_percentile}}/100{% endif %}</div>{% endif %}
-{% if x.seller %}<div class="meta">Seller: <b>{{x.seller}}</b>{% if x.feedback is not none %} · {{x.feedback}}% positive{% endif %}{% if x.reviews is not none %} · {{x.reviews}} feedback{% endif %}</div>{% endif %}
-{% if x.quantity_sold %}<div class="meta">{{x.quantity_sold}}</div>{% endif %}
-<a class="btn" target="_blank" rel="noopener" href="{{x.url}}">View on eBay</a>
-<a class="btn" href="/comp?title={{x.title|urlencode}}&price={{x.total}}&q={{q|urlencode}}">Analyze eBay Sold Comps</a>
-</div>{% endfor %}
-</div>
-<div class="brand">Powered by SerpApi eBay Search · Active listings are not sold comps · Card Scout does not calculate market value.</div>
-</div></body></html>"""
+def sold_url(title):
+    return "https://www.ebay.com/sch/i.html?"+urlencode({"_nkw":title,"LH_Sold":"1","LH_Complete":"1"})
 
-@app.route("/")
+HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout v1.0</title><style>
+*{box-sizing:border-box}body{font-family:Inter,system-ui;margin:0;background:#090d12;color:#edf2f7}.wrap{max-width:1500px;margin:auto;padding:25px}.muted{color:#91a0b2}.tabs{display:flex;gap:8px;margin:18px 0}.tab,.btn,button{display:inline-block;padding:10px 13px;border-radius:10px;text-decoration:none;font-weight:750;border:1px solid #39465b}.tab{color:#dce5ef;background:#111821}.tab.on,.btn,button{background:#edf2f7;color:#0b0e13}.filters,.notice{background:#111821;border:1px solid #253142;border-radius:15px;padding:15px;margin:13px 0}.filters{display:flex;gap:8px;flex-wrap:wrap}.search{min-width:300px;flex:1}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:14px}.card{background:#111821;border:1px solid #253142;border-radius:15px;padding:14px;display:flex;flex-direction:column}.card img{width:100%;height:205px;object-fit:contain;background:#fff;border-radius:11px}.price{font-size:25px;font-weight:850;margin-top:auto}.meta{font-size:13px;color:#aab5c3;margin:5px 0}.pill{display:inline-block;padding:4px 8px;background:#1b2431;border-radius:999px;margin:3px;font-size:12px}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}input,select{padding:10px;border-radius:9px;border:1px solid #39465b;background:#0d131c;color:white}.comp{display:flex;gap:5px;margin-top:9px}.comp input{width:110px}.result{font-weight:800;margin-top:7px}.actions{display:flex;gap:5px;flex-wrap:wrap}.actions .btn{font-size:12px}.sponsored{opacity:.65}</style>
+<script>
+function calc(id,total){let v=parseFloat(document.getElementById('c'+id).value),o=document.getElementById('r'+id);if(!v||v<=0){o.textContent='';return}let d=(v-total)/v*100;if(d>=25)o.innerHTML='<span class="good">🔥 '+d.toFixed(1)+'% below your verified comp</span>';else if(d>=10)o.innerHTML='<span class="warn">'+d.toFixed(1)+'% below your verified comp</span>';else if(d>=0)o.innerHTML='<span class="warn">'+d.toFixed(1)+'% below comp — small spread</span>';else o.innerHTML='<span class="bad">'+Math.abs(d).toFixed(1)+'% ABOVE your verified comp — PASS</span>'}
+</script></head><body><div class="wrap">
+<h1>Card Scout <span class="pill">v1.0</span></h1><div class="muted">Discovery first. You verify the comp; Card Scout does the deal math.</div>
+<div class="tabs"><a class="tab {% if mode=='singles' %}on{% endif %}" href="/?mode=singles">Singles Scout</a><a class="tab {% if mode=='lots' %}on{% endif %}" href="/?mode=lots">Lot Scout</a></div>
+<form class="filters"><input type="hidden" name="mode" value="{{mode}}"><input class="search" name="q" required placeholder="{% if mode=='lots' %}e.g. baseball card lot rookies autos{% else %}e.g. Dylan Harper Topps Chrome{% endif %}" value="{{q}}">
+<input name="min" type="number" min="0" value="{{minp}}" style="width:90px"><input name="max" type="number" min="1" value="{{maxp}}" style="width:90px">
+<select name="format"><option value="bin" {% if fmt=='bin' %}selected{% endif %}>Buy It Now</option><option value="auction" {% if fmt=='auction' %}selected{% endif %}>Auctions</option><option value="all" {% if fmt=='all' %}selected{% endif %}>All</option></select>
+<select name="sort"><option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest</option><option value="lowest" {% if sort=='lowest' %}selected{% endif %}>Lowest price</option><option value="ending" {% if sort=='ending' %}selected{% endif %}>Ending soon</option></select><button>Scan eBay</button></form>
+{% if mode=='singles' %}<div class="notice"><b>No fake Opportunity Score.</b> Use the eBay Sold / 130point / Card Ladder buttons, enter the comp you personally verified, and Card Scout calculates the real spread. Auction Watch is only urgency + current-price ranking, not market value.</div>
+{% else %}<div class="notice"><b>Lot Scout:</b> searches listings marked/described as lots and ranks observable signals: estimated card count, price/card, hit keywords and junk/repack warnings. <b>Lot Interest is not a market-value score.</b> Inspect photos and comp the valuable cards before buying.</div>{% endif %}
+{% if error %}<div class="notice bad">{{error}}</div>{% endif %}{% if searched and not error %}<div class="notice">{{items|length}} listings shown. One scan uses one SerpApi search.</div>{% endif %}
+<div class="grid">{% for x in items %}<div class="card {% if x.sponsored %}sponsored{% endif %}">{% if x.image %}<img src="{{x.image}}" loading="lazy">{% endif %}<h3>{{x.title}}</h3>
+<div>{% if fmt=='auction' and x.auction_score is defined %}<span class="pill warn">Auction Watch {{x.auction_score}}/100</span>{% endif %}{% if mode=='lots' and x.lot_interest is defined %}<span class="pill">Lot Interest {{x.lot_interest}}/100</span>{% endif %}{% if x.new_listing %}<span class="pill good">New</span>{% endif %}</div>
+<div class="price">${{"%.2f"|format(x.total)}} total</div><div class="meta">${{"%.2f"|format(x.price)}} item + ${{"%.2f"|format(x.shipping)}} shipping</div>
+{% if x.time_left %}<div class="meta warn"><b>{{x.time_left}} left</b> · {{x.bids or 0}} bids</div>{% endif %}
+{% if mode=='lots' %}{% if x.estimated_count %}<div class="meta">Estimated {{x.estimated_count}} cards · <b>${{"%.2f"|format(x.price_per_card)}}/card</b></div>{% endif %}{% if x.hit_words %}<div class="meta good">Signals: {{x.hit_words|join(', ')}}</div>{% endif %}{% if x.junk_flags %}<div class="meta bad"><b>Warning:</b> {{x.junk_flags|join(', ')}}</div>{% endif %}{% endif %}
+{% if x.seller %}<div class="meta">{{x.seller}}{% if x.feedback %} · {{x.feedback}}% feedback{% endif %}</div>{% endif %}
+<div class="actions"><a class="btn" target="_blank" href="{{x.url}}">View Listing</a><a class="btn" target="_blank" href="{{x.sold_url}}">eBay Sold</a><a class="btn" target="_blank" href="https://130point.com/sales/">130point</a><a class="btn" target="_blank" href="https://www.cardladder.com/">Card Ladder</a></div>
+{% if mode=='singles' %}<div class="comp"><input id="c{{loop.index}}" type="number" step=".01" min=".01" placeholder="Verified comp $"><button type="button" onclick="calc({{loop.index}},{{x.total}})">Calculate</button></div><div id="r{{loop.index}}" class="result"></div>{% endif %}
+</div>{% endfor %}</div></div></body></html>"""
+
+@app.get("/")
 def home():
+    mode=request.args.get("mode","singles")
     q=request.args.get("q","").strip()
-    try: minp=float(request.args.get("min","75"))
-    except: minp=75
-    try: maxp=float(request.args.get("max","150"))
-    except: maxp=150
-    sort=request.args.get("sort","opportunity")
-    if sort not in {"opportunity","newest","lowest","ending"}: sort="opportunity"
-    buying_format=request.args.get("format","bin")
-    if buying_format not in {"bin","auction","all"}: buying_format="bin"
-    # Auctions are useful only near close; default them to ending-soon if user left newest selected.
-    if buying_format=="auction": sort="ending"
-    items=[]; error=""; searched=bool(q)
+    try:minp=float(request.args.get("min","10" if mode=="lots" else "25"))
+    except:minp=10
+    try:maxp=float(request.args.get("max","500" if mode=="lots" else "250"))
+    except:maxp=500
+    fmt=request.args.get("format","bin"); sort=request.args.get("sort","newest")
+    searched=bool(q); items=[]; error=""
     if searched:
-        if len(q)>100: error="Keep the search under 100 characters."
-        elif minp<0 or maxp<=minp: error="Enter a valid minimum and maximum price."
-        elif not os.getenv("SERPAPI_API_KEY"): error="SERPAPI_API_KEY is missing from Render Environment Variables."
-        else:
-            try:
-                api_sort="newest" if sort=="opportunity" else sort
-                items=SerpApiEbayClient().search(q,minp,maxp,limit=200,sort=api_sort,buying_format=buying_format)
-                if buying_format=="auction": items=rank_auctions(items)
-                elif sort=="opportunity": items=rank_opportunities(items,q)
-            except Exception as e: error=f"SerpApi connection error: {e}"
-    labels={"opportunity":"Best Opportunities","newest":"Newest first","lowest":"Lowest price","ending":"Ending soon"}
-    flabels={"bin":"Buy It Now","auction":"Auctions","all":"All listings"}
-    return render_template_string(HTML,q=q,minp=int(minp),maxp=int(maxp),sort=sort,sort_label=labels[sort],buying_format=buying_format,format_label=flabels[buying_format],items=items,count=len(items),error=error,searched=searched)
-
-
-COMP_HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout Comp Check</title><style>
-body{font-family:Inter,system-ui;background:#090d12;color:#edf2f7;margin:0}.wrap{max-width:1050px;margin:auto;padding:26px}.box,.sale{background:#111821;border:1px solid #253142;border-radius:15px;padding:16px;margin:12px 0}.big{font-size:30px;font-weight:850}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}.muted{color:#94a0af}a.btn{display:inline-block;background:#edf2f7;color:#0b0e13;padding:10px 13px;border-radius:9px;text-decoration:none;font-weight:750;margin:5px 5px 5px 0}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}</style></head><body><div class="wrap">
-<h1>Sold Comp Check <small>v0.9</small></h1><div class="box"><b>{{title}}</b><p>Listing total: <b>${{"%.2f"|format(price)}}</b></p>
-{% if result.median is not none %}<div class="big {% if result.discount>=20 %}good{% elif result.discount>=10 %}warn{% else %}bad{% endif %}">{{result.discount}}% below matched sold reference</div><p>Matched sold median: <b>${{result.median}}</b> · {{result.matches|length}} matches · confidence {{result.confidence}}%</p>
-{% else %}<div class="big warn">Manual comp check required</div><p>Card Scout could not find sufficiently similar sold results to calculate a safe reference.</p>{% endif %}
-{% if result.status=='strong' %}<p class="good"><b>Strong candidate:</b> at least 3 matched sales, ≥80% match confidence, and ≥20% below the matched sold median. Still verify before buying.</p>{% elif result.status=='possible' %}<p class="warn"><b>Possible opportunity.</b> Verify the sales below before buying.</p>{% elif result.status=='average' %}<p class="bad"><b>Not clearly below comps.</b> This appears average/expensive relative to the matched sold results.</p>{% endif %}
-<a class="btn" target="_blank" href="{{sold_url}}">Open Exact eBay Sold Search</a><a class="btn" target="_blank" href="https://130point.com/sales/">Verify on 130point</a><a class="btn" href="/">Back to Card Scout</a></div>
-{% if error %}<div class="box bad">{{error}}</div>{% endif %}
-<div class="grid">{% for x in result.matches %}<div class="sale"><b>{{x.title}}</b><p>${{"%.2f"|format(x.total)}}{% if x.sold_date %} · {{x.sold_date}}{% endif %}</p><p class="muted">Identity similarity: {{x.similarity}}%</p>{% if x.url %}<a class="btn" target="_blank" href="{{x.url}}">View sold result</a>{% endif %}</div>{% endfor %}</div>
-<p class="muted">Sold prices shown by eBay/SerpApi may not reveal an accepted Best Offer amount. Card Scout therefore treats this as a reference, not guaranteed market value.</p></div></body></html>"""
-
-@app.get("/comp")
-def comp():
-    title=request.args.get("title","").strip(); q=request.args.get("q","").strip()
-    try: price=float(request.args.get("price","0"))
-    except: price=0
-    query=comp_query(title); sold_url=ebay_sold_url(query); error=""
-    result={"status":"manual","matches":[],"median":None,"discount":None,"confidence":0}
-    if title and price>0 and os.getenv("SERPAPI_API_KEY"):
         try:
-            rows=SerpApiEbayClient().sold_search(query,100)
-            result=evaluate(title,price,rows,q or title)
-        except Exception as e:
-            error="Automatic sold search is unavailable right now. Use the exact eBay Sold Search button below. "+str(e)
-    return render_template_string(COMP_HTML,title=title,price=price,result=result,sold_url=sold_url,error=error)
+            search_q=q
+            if mode=="lots" and "lot" not in q.lower(): search_q=q+" card lot"
+            api_sort="ending" if fmt=="auction" else sort
+            items=SerpApiEbayClient().search(search_q,minp,maxp,200,api_sort,fmt,lots_only=(mode=="lots"))
+            if mode=="lots":
+                items=[x for x in items if ("lot" in x["title"].lower() or "cards" in x["title"].lower())]
+                items=rank_lots(items)
+            elif fmt=="auction":
+                items=rank_auctions(items)
+            for x in items:x["sold_url"]=sold_url(x["title"])
+        except Exception as e:error=str(e)
+    return render_template_string(HTML,mode=mode,q=q,minp=minp,maxp=maxp,fmt=fmt,sort=sort,items=items,error=error,searched=searched)
 
 @app.get("/health")
-def health(): return {"ok":True,"version":"0.5","serpapi_configured":bool(os.getenv("SERPAPI_API_KEY"))}
+def health():return {"ok":True,"version":"1.0","serpapi_configured":bool(os.getenv("SERPAPI_API_KEY"))}
 
-if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.getenv("PORT","8000")))
+if __name__=="__main__":app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))

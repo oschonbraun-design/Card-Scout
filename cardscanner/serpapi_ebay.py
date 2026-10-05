@@ -17,11 +17,12 @@ class SerpApiEbayClient:
         m=re.search(r"\$\s*([0-9]+(?:\.[0-9]+)?)",str(v))
         return float(m.group(1)) if m else 0.0
 
-    def search(self, query, min_price, max_price, limit=200, sort="newest", buying_format="bin"):
+    def search(self, query, min_price, max_price, limit=200, sort="newest", buying_format="bin", lots_only=False):
         sop={"newest":"10","lowest":"15","ending":"1"}.get(sort,"10")
         params={"engine":"ebay","ebay_domain":"ebay.com","_nkw":query,
                 "_ipg":str(min(200,max(25,int(limit)))),"_sop":sop,
                 "api_key":self.api_key,"_udlo":str(min_price),"_udhi":str(max_price)}
+        if lots_only: params["show_only"]="Lots"
         if buying_format == "bin": params["buying_format"]="BIN"
         elif buying_format == "auction": params["buying_format"]="Auction"
         req=Request("https://serpapi.com/search.json?"+urlencode(params),
@@ -61,23 +62,3 @@ class SerpApiEbayClient:
             if k in seen: continue
             seen.add(k); clean.append(x)
         return clean
-
-    def sold_search(self, query, limit=100):
-        params={"engine":"ebay","ebay_domain":"ebay.com","_nkw":query,
-                "_ipg":str(min(200,max(25,int(limit)))),"show_only":"Sold",
-                "api_key":self.api_key}
-        req=Request("https://serpapi.com/search.json?"+urlencode(params),
-                    headers={"User-Agent":"CardScout/0.9"})
-        with urlopen(req,timeout=35) as r: obj=json.load(r)
-        if obj.get("error"): raise RuntimeError(obj["error"])
-        out=[]
-        for x in obj.get("organic_results",[]):
-            price=x.get("price") or {}
-            if not isinstance(price,dict) or price.get("extracted") is None: continue
-            try: p=float(price["extracted"])
-            except (TypeError,ValueError): continue
-            ship=self._shipping(x.get("shipping"))
-            out.append({"title":x.get("title",""),"price":round(p,2),
-                        "shipping":round(ship,2),"total":round(p+ship,2),
-                        "url":x.get("link",""),"sold_date":x.get("sold_date") or x.get("listing_date","")})
-        return out
