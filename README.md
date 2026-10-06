@@ -1,20 +1,14 @@
-# Card Scout v1.1 — Verified Comp Opportunity Scores
+# Card Scout v1.3 — Automatic Sold Comps
 
-## What changed
-- Opportunity Score is back, but **only** when the browser has a saved verified comp for the exact card identity.
-- No comp = `Comp Needed`; incomplete identity = `Verify Identity`.
-- Comp Library persists in browser localStorage, so no Card Ladder password/API key is stored.
-- Save Last Sale, Recent Average, CL Value, sale count and verification date.
-- Reference prefers CL Value + recent average, then CL Value, then recent average, then last sale.
-- Score is reduced for stale comps and weak evidence. Above-comp listings score 0.
-- Hard identity key separates player, year, product, parallel, auto/non-auto, serial denominator, grader, grade and card number when available.
-- Card Ladder workflow: Copy CL Search -> Open Card Ladder -> verify exact card/same grade -> save evidence once.
-- Lot Scout and Auction Watch remain.
+SerpApi finds live eBay listings. The Card API analyzes actual completed eBay sales.
 
-## Accuracy rule
-Card Scout never creates a market-value Opportunity Score from active asking prices. A score requires a user-verified comp. Ambiguous titles are not silently treated as another parallel/grade.
+Each Singles result has **Analyze Sold Comps**. Card Scout filters sold results conservatively and refuses to score when it cannot find enough close matches. It hard-rejects mismatches in grading company/grade, autograph status, year, product, parallel, serial print run and card number when those fields are identifiable. The analysis page shows every sold listing used so you can audit the result.
 
-## Deploy
-Same Render service and `SERPAPI_API_KEY`.
+Opportunity Score is based on percentage below the median of close, confirmed sold matches, adjusted for match quality and number of comps. Cards at/above sold comp score 0. Fewer than two close matches produces **No score — insufficient reliable comps**.
+
+Environment variables on Render:
+- `SERPAPI_API_KEY`
+- `THECARDAPI_KEY`
+
 Build: `pip install -r requirements.txt`
 Start: `gunicorn webapp:app`
