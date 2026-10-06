@@ -1,14 +1,10 @@
-# Card Scout v1.3 — Automatic Sold Comps
+# Card Scout v1.4 — The Card API + Soldgraph
 
-SerpApi finds live eBay listings. The Card API analyzes actual completed eBay sales.
-
-Each Singles result has **Analyze Sold Comps**. Card Scout filters sold results conservatively and refuses to score when it cannot find enough close matches. It hard-rejects mismatches in grading company/grade, autograph status, year, product, parallel, serial print run and card number when those fields are identifiable. The analysis page shows every sold listing used so you can audit the result.
-
-Opportunity Score is based on percentage below the median of close, confirmed sold matches, adjusted for match quality and number of comps. Cards at/above sold comp score 0. Fewer than two close matches produces **No score — insufficient reliable comps**.
-
-Environment variables on Render:
-- `SERPAPI_API_KEY`
-- `THECARDAPI_KEY`
-
-Build: `pip install -r requirements.txt`
-Start: `gunicorn webapp:app`
+- SerpApi finds current eBay listings.
+- Analyze Sold Comps uses The Card API first for recent transactions.
+- If recent evidence is thin, Card Scout automatically queries Soldgraph's eBay sold endpoint and polls pending search jobs until complete.
+- Soldgraph Best Offer rows are excluded because Soldgraph does not verify the accepted offer amount.
+- Exact-card matching rejects grade/grader, auto, year/product, parallel, serial-numbering, and card-number mismatches when identifiable.
+- One exact sold match can create a clearly provisional score; 2+ matches provide stronger evidence.
+- No trustworthy matches = no score. Active asking prices are never used as the market comp.
+- Render needs SERPAPI_API_KEY, THECARDAPI_KEY, and SOLDGRAPH_KEY.

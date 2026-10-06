@@ -63,12 +63,12 @@ class CardApiClient:
         with urlopen(req,timeout=35) as r: obj=json.load(r)
         rows=[]
         for sale in obj.get('data',[]):
-            try: price=float(sale.get('price'))
+            try: price=float(sale.get('price', sale.get('sale_price')))
             except (TypeError,ValueError): continue
             if price<=0 or not sale.get('price_confirmed',True): continue
             ok,match=_sale_match(title,sale,player)
             if ok:
-                rows.append({'title':sale.get('title',''),'price':price,'date':sale.get('sale_date',''),'url':sale.get('listing_url',''),'type':sale.get('listing_type',''),'match':round(match*100),'id':sale.get('id','')})
+                rows.append({'title':sale.get('title',''),'price':price,'date':sale.get('sale_date',''),'url':sale.get('listing_url',''),'type':sale.get('listing_type',''),'match':round(match*100),'id':sale.get('id',''),'source':'The Card API'})
         # dedupe by id/title-price-date
         seen=set(); clean=[]
         for x in rows:
@@ -77,22 +77,10 @@ class CardApiClient:
         return clean
 
 def evaluate_listing(title,total,search_query):
+    from .soldgraph import combine_eval
     player=player_from_query(search_query)
-    sales=CardApiClient().sales(title,player)
-    if len(sales)<2:
-        return {'status':'insufficient','sales':sales[:8],'count':len(sales),'reason':'Need at least 2 close sold matches.'}
-    vals=[x['price'] for x in sales]
-    med=statistics.median(vals)
-    # Remove wild outliers around median, then require support again.
-    kept=[x for x in sales if med*.55 <= x['price'] <= med*1.80]
-    if len(kept)<2:
-        return {'status':'insufficient','sales':kept[:8],'count':len(kept),'reason':'Sold matches were too inconsistent.'}
-    vals=[x['price'] for x in kept]; med=statistics.median(vals)
-    discount=(med-total)/med*100 if med else 0
-    support=min(1,len(kept)/5); matchavg=sum(x['match'] for x in kept)/len(kept)/100
-    # Score only positive discounts. 25% below with good support is ~70-90.
-    opp=round(max(0,min(100,discount*3.0*(.72+.28*support)*(.82+.18*matchavg))))
-    if discount>=20 and len(kept)>=3: status='strong'
-    elif discount>=10: status='possible'
-    else: status='pass'
-    return {'status':status,'reference':round(med,2),'discount':round(discount,1),'score':opp,'count':len(kept),'sales':kept[:8],'reason':''}
+    try:
+        recent=CardApiClient().sales(title,player)
+    except Exception:
+        recent=[]
+    return combine_eval(title,total,search_query,recent)
