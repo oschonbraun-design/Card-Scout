@@ -60,27 +60,27 @@ class SoldgraphClient:
             if ok: rows.append({'title':sale.get('title',''),'price':price,'date':sale.get('sold_date',''),'url':sale.get('link',''),'type':sale.get('format',''),'match':round(m*100),'id':sale.get('id',''),'source':'Soldgraph'})
         return rows
 
-def combine_eval(title,total,search_query,recent_sales):
+def evaluate_soldgraph(title,total,search_query):
     player=player_from_query(search_query)
-    sales=list(recent_sales)
-    source='The Card API'
-    if len(sales)<2:
-        try:
-            extra=SoldgraphClient().sold(title,player)
-            existing={(x.get('title'),round(x.get('price',0),2),x.get('date')) for x in sales}
-            sales += [x for x in extra if (x.get('title'),round(x.get('price',0),2),x.get('date')) not in existing]
-            source='The Card API + Soldgraph' if recent_sales else 'Soldgraph'
-        except Exception as e:
-            if not sales: return {'status':'insufficient','sales':[],'count':0,'reason':'Sold comp lookup failed: '+str(e),'source':'none'}
-    if len(sales)<1: return {'status':'insufficient','sales':[],'count':0,'reason':'No trustworthy exact sold matches found.','source':source}
-    vals=[x['price'] for x in sales]; med=statistics.median(vals)
+    try:
+        sales=SoldgraphClient().sold(title,player)
+    except Exception as e:
+        return {'status':'insufficient','sales':[],'count':0,'reason':'Soldgraph lookup failed: '+str(e),'source':'Soldgraph'}
+    if not sales:
+        return {'status':'insufficient','sales':[],'count':0,'reason':'No trustworthy exact Soldgraph matches found.','source':'Soldgraph'}
+    vals=[x['price'] for x in sales]
+    med=statistics.median(vals)
     kept=[x for x in sales if med*.55<=x['price']<=med*1.80]
-    if not kept: return {'status':'insufficient','sales':[],'count':0,'reason':'Sold matches were too inconsistent.','source':source}
-    med=statistics.median([x['price'] for x in kept]); discount=(med-total)/med*100 if med else 0
+    if not kept:
+        return {'status':'insufficient','sales':[],'count':0,'reason':'Sold matches were too inconsistent.','source':'Soldgraph'}
+    med=statistics.median([x['price'] for x in kept])
+    discount=(med-total)/med*100 if med else 0
     avgmatch=sum(x.get('match',70) for x in kept)/len(kept)/100
     evidence=.68 if len(kept)==1 else .84 if len(kept)==2 else min(1,.88+.03*min(4,len(kept)-3))
     score=round(max(0,min(100,discount*3.0*evidence*(.85+.15*avgmatch))))
     if discount>=20 and len(kept)>=2: status='strong'
     elif discount>=10: status='possible'
     else: status='pass'
-    return {'status':status,'reference':round(med,2),'discount':round(discount,1),'score':score,'count':len(kept),'sales':kept[:10],'reason':'1-sale provisional comp' if len(kept)==1 else '', 'source':source}
+    return {'status':status,'reference':round(med,2),'discount':round(discount,1),'score':score,
+            'count':len(kept),'sales':kept[:10],
+            'reason':'1-sale provisional comp' if len(kept)==1 else '', 'source':'Soldgraph'}

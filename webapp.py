@@ -5,14 +5,14 @@ from cardscanner.serpapi_ebay import SerpApiEbayClient
 from cardscanner.auction import rank_auctions
 from cardscanner.lots import rank_lots
 from cardscanner.compkey import card_key
-from cardscanner.cardapi import evaluate_listing
+from cardscanner.soldgraph import evaluate_soldgraph
 
 app=Flask(__name__)
 
 def sold_url(title):
     return "https://www.ebay.com/sch/i.html?"+urlencode({"_nkw":title,"LH_Sold":"1","LH_Complete":"1"})
 
-HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout v1.4</title><style>
+HTML=r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Card Scout v1.5</title><style>
 *{box-sizing:border-box}body{font-family:Inter,system-ui;margin:0;background:#090d12;color:#edf2f7}.wrap{max-width:1500px;margin:auto;padding:25px}.muted{color:#91a0b2}.tabs{display:flex;gap:8px;margin:18px 0}.tab,.btn,button{display:inline-block;padding:10px 13px;border-radius:10px;text-decoration:none;font-weight:750;border:1px solid #39465b}.tab{color:#dce5ef;background:#111821}.tab.on,.btn,button{background:#edf2f7;color:#0b0e13}.filters,.notice{background:#111821;border:1px solid #253142;border-radius:15px;padding:15px;margin:13px 0}.filters{display:flex;gap:8px;flex-wrap:wrap}.search{min-width:300px;flex:1}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:14px}.card{background:#111821;border:1px solid #253142;border-radius:15px;padding:14px;display:flex;flex-direction:column}.card img{width:100%;height:205px;object-fit:contain;background:#fff;border-radius:11px}.price{font-size:25px;font-weight:850;margin-top:auto}.meta{font-size:13px;color:#aab5c3;margin:5px 0}.pill{display:inline-block;padding:4px 8px;background:#1b2431;border-radius:999px;margin:3px;font-size:12px}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}input,select{padding:10px;border-radius:9px;border:1px solid #39465b;background:#0d131c;color:white}.comp{display:flex;gap:5px;margin-top:9px}.comp input{width:110px}.compform{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.compform input{width:125px}summary{cursor:pointer}.result{font-weight:800;margin-top:7px}.actions{display:flex;gap:5px;flex-wrap:wrap}.actions .btn{font-size:12px}.sponsored{opacity:.65}</style>
 <script>
 const LIBKEY='cardScoutCompLibraryV11';
@@ -84,11 +84,11 @@ def analyze():
     url=request.args.get("url","")
     try: total=float(request.args.get("total","0"))
     except: total=0
-    try: result=evaluate_listing(title,total,q)
+    try: result=evaluate_soldgraph(title,total,q)
     except Exception as e: result={"status":"error","reason":str(e),"sales":[],"count":0}
     return render_template_string(r"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Comp Analysis</title><style>body{font-family:system-ui;background:#090d12;color:#edf2f7;max-width:950px;margin:auto;padding:28px}.box{background:#111821;border:1px solid #253142;border-radius:15px;padding:18px;margin:14px 0}.good{color:#51db86}.warn{color:#ffcc66}.bad{color:#ff7b7b}a{color:#9fd3ff}.score{font-size:38px;font-weight:900}.price{font-size:25px;font-weight:800}</style></head><body><a href="javascript:history.back()">← Back to scanner</a><h1>Sold Comp Analysis</h1><div class="box"><b>{{title}}</b><div class="price">Listing total: ${{"%.2f"|format(total)}}</div>{% if result.status in ['strong','possible','pass'] %}<div class="score {{'good' if result.status=='strong' else 'warn' if result.status=='possible' else 'bad'}}">Opportunity {{result.score}}/100</div><p>Sold reference: <b>${{"%.2f"|format(result.reference)}}</b> · {{result.count}} close matches · source: <b>{{result.source}}</b> · {% if result.discount>=0 %}<b>{{result.discount}}% below sold comp</b>{% else %}<b>{{-result.discount}}% ABOVE sold comp</b>{% endif %}</p>{% elif result.status=='insufficient' %}<h2 class="warn">No score — insufficient reliable comps</h2><p>{{result.reason}}</p>{% else %}<h2 class="bad">Comp lookup failed</h2><p>{{result.reason}}</p>{% endif %}</div><div class="box"><h2>Matched sold listings</h2>{% if result.sales %}{% for s in result.sales %}<p><b>${{"%.2f"|format(s.price)}}</b> · {{s.date}} · {{s.type}} · match {{s.match}}%<br>{{s.title}}{% if s.url %} · <a target="_blank" href="{{s.url}}">sold listing</a>{% endif %}</p>{% endfor %}{% else %}<p>No close matches returned. Check Card Ladder/130point manually rather than guessing.</p>{% endif %}</div>{% if url %}<p><a target="_blank" href="{{url}}">Open active eBay listing</a></p>{% endif %}</body></html>""",title=title,total=total,result=result,url=url)
 
 @app.get("/health")
-def health():return {"ok":True,"version":"1.4","serpapi_configured":bool(os.getenv("SERPAPI_API_KEY")),"cardapi_configured":bool(os.getenv("THECARDAPI_KEY")),"soldgraph_configured":bool(os.getenv("SOLDGRAPH_KEY"))}
+def health():return {"ok":True,"version":"1.5","serpapi_configured":bool(os.getenv("SERPAPI_API_KEY")),"soldgraph_configured":bool(os.getenv("SOLDGRAPH_KEY"))}
 
 if __name__=="__main__":app.run(host="0.0.0.0",port=int(os.getenv("PORT","10000")))
