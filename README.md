@@ -1,26 +1,16 @@
-# Card Scout v1.5 — Soldgraph Only
+# Card Scout v1.6 — Soldgraph Only, Clean Build
 
-Active listings come from SerpApi. Sold comps come only from Soldgraph.
-The Card API is completely removed from the application path and is not required.
+This build removes all Card API and manual Comp Library UI/code from the website.
 
-## Render environment
-Required:
-- SERPAPI_API_KEY
-- SOLDGRAPH_KEY
+- SerpApi: active eBay listings only.
+- Soldgraph: sold comps only.
+- No active asking-price median is ever used as a market comp.
+- Soldgraph accepted Best Offer rows are excluded because Soldgraph documents that the displayed amount is the asking price, not the verified paid price.
+- Exact-card matching is stricter: known active year/product/parallel/serial/card number must also be identifiable and matching in a sold title; grade/grader and auto status are hard gates.
+- Up to 200 recently-sold rows are requested in one Soldgraph search.
+- Robust outlier filtering is applied before the median comp.
+- One exact sale is provisional and can never create a high Opportunity Score; 2+ matching sales are required for a strong deal.
+- The analysis page displays the sold listings used so the result can be audited.
 
-THECARDAPI_KEY may be deleted from Render, but leaving an unused variable does not affect v1.5.
-
-## Accuracy
-- Active asking prices are never used as market comps.
-- Soldgraph Best Offer rows are excluded because the displayed price is not a verified accepted-offer price.
-- Exact-card matching rejects obvious grader/grade, auto, year/product, parallel, serial-numbering and card-number mismatches when identifiable.
-- One matching sale is provisional; two or more matches are stronger evidence.
-- No trustworthy match means no Opportunity Score.
-- Soldgraph searches can return pending jobs; Card Scout polls the job with long polling before reading results.
-
-## Usage
-Scan active eBay listings normally, then click Analyze Sold Comps on a candidate. This intentionally avoids spending a Soldgraph request on every active listing because the free Soldgraph plan has a limited monthly allowance.
-
-Same Render build/start:
-- `pip install -r requirements.txt`
-- `gunicorn webapp:app`
+Render environment required: `SERPAPI_API_KEY` and `SOLDGRAPH_KEY`.
+`THECARDAPI_KEY` is not referenced anywhere in this build.
