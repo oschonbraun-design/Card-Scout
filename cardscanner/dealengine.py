@@ -12,6 +12,21 @@ BAD = re.compile(r'\b(variation|choose|pick your|you pick|random|read descriptio
 
 from .dealengine_identity import strict_identity, matching, sold_query
 
+# Player names used only to identify the player in a listing, not to assert card identity.
+DISCOVERY_PLAYERS = {
+ 'basketball':['Victor Wembanyama','Anthony Edwards','Shai Gilgeous-Alexander','Luka Doncic','Stephen Curry','Cade Cunningham','Paolo Banchero','Cooper Flagg','Dylan Harper','Tyrese Maxey'],
+ 'football':['Caleb Williams','Jayden Daniels','Drake Maye','Joe Burrow','Brock Purdy','Bijan Robinson','Jahmyr Gibbs','CJ Stroud','Patrick Mahomes','Bo Nix'],
+ 'baseball':['Shohei Ohtani','Aaron Judge','Paul Skenes','Elly De La Cruz','Bobby Witt Jr','Jackson Chourio','Jackson Holliday','Roman Anthony','Juan Soto','Gunnar Henderson']
+}
+
+def identify_player(title, names):
+    from .dealengine_identity import tokens
+    title_tokens=tokens(title)
+    for name in names:
+        if tokens(name).issubset(title_tokens):return name
+    return None
+
+
 def evaluate_candidate(item, player, fee_pct=.135, fulfillment=5.0):
     title=item['title']; identity=strict_identity(title,player)
     if not identity:
@@ -49,23 +64,21 @@ def evaluate_candidate(item, player, fee_pct=.135, fulfillment=5.0):
             'profit':round(profit,2),'roi':round(roi*100,1),'count':len(matches),
             'sales':matches,'reason': 'Meets discount, net-profit and ROI thresholds.' if status=='deal' else 'Fails discount or after-fee profit thresholds.'}
 
-def scan_candidates(items, query, limit=8):
-    player=player_from_query(query)
-    # A search for "Player Prizm Silver PSA 10" must not treat PSA as surname.
-    player=re.sub(r'\b(?:\d+|refractor|variation|numbered|base|insert|autographed|autograph|gold|orange|teal|zebra|genesis|holo|wave|choice|ruby|jumbo|stained|glass|silver|psa|sgc|bgs|cgc|rookie|rc|auto)\b',' ',player,flags=re.I)
-    player=re.sub(r'\s+',' ',player).strip()
-    # Check different exact-card families, not merely the first four cheap listings.
-    # Limit API calls, but examine the full active search result set first.
+def scan_candidates(items, query, limit=8, player_names=None):
+    player_names=player_names or [player_from_query(query)]
     candidates=[]; skipped=0; seen=set()
+    # Prefer plausible low-priced listings, but do not repeatedly comp the same card.
     for item in sorted(items,key=lambda x:float(x.get('total') or 1e9)):
+        player=identify_player(item.get('title',''),player_names)
+        if not player:skipped+=1;continue
         identity=strict_identity(item.get('title',''),player)
         if not identity:skipped+=1;continue
         key=(identity['player'],identity['year'],identity['product'],identity['parallel'],identity['serial'],identity['grader'],identity['grade'],identity['auto'],identity['number'])
         if key in seen:continue
-        seen.add(key);candidates.append(item)
+        seen.add(key);candidates.append((item,player))
         if len(candidates)>=limit:break
     results=[]
-    for item in candidates:
+    for item,player in candidates:
         try:analysis=evaluate_candidate(item,player)
         except Exception as e:analysis={'status':'error','reason':str(e)}
         results.append({'item':item,'analysis':analysis})

@@ -1,15 +1,9 @@
-# Card Scout v2.0 — Under-Comps Finder
+# Card Scout v2.1 — Discovery Finder
 
-Deploy to Render with the existing GitHub project. Required environment variables: `SERPAPI_API_KEY` and `COMPSNIPER_API_KEY`. `SOLDGRAPH_KEY` is not used.
+Scan NBA, NFL, or MLB without knowing a specific card. A scan queries up to three player searches via SerpApi and attempts to verify up to eight distinct candidate card families against CompSniper. Players can be selected automatically or narrowed using the optional search field.
 
-## What changed
-- Removed v1.9's mistaken requirement for a parallel or card number: ordinary base cards are now eligible.
-- Search uses shorter CompSniper queries to avoid requiring every title keyword to match.
-- Strict comparison still rejects known mismatches in year, product, parallel, grade, autograph, numbering, and player.
-- Under-Comps Finder examines the returned active listings and analyzes up to eight distinct low-priced card identities, flags only those clearing 25% below sold median, $15 estimated net profit, and 20% ROI.
-- All available matched sales are shown in the comp audit. Current value requires at least three matching sales within 180 days.
+This is not a comprehensive scan of eBay. No active listing asking price is used as a comp. The website will flag only cards with three exact recent sold matches and sufficient projected profit after estimated fees; no match is not proof of no deal. CompSniper request quotas apply. The free tier is limited and scanning can consume several requests.
 
-## Limitations
-- A single scan is not a comprehensive market crawl. CompSniper historical requests are limited by your plan and the API's results. Eight candidates can use eight requests, and more if you open separate comp pages.
-- No live integration test was possible without the private API keys; review Render logs and returned API errors if your provider's response shape differs.
-- Title matching is conservative but cannot verify image-only parallels, altered cards, hidden condition, or listing fraud. Confirm photos and sales manually before purchase.
+Render variables: SERPAPI_API_KEY and COMPSNIPER_API_KEY. Build: pip install -r requirements.txt. Start: gunicorn webapp:app.
+
+**Known limitation:** Live CompSniper API calls cannot be tested without access to your private Render environment. Provider schema and authorization must be verified with a live test before relying on results for purchases. A title-based matcher cannot guarantee image-level variant identity. Always verify card photo, listing details, recent sales and seller before purchasing.

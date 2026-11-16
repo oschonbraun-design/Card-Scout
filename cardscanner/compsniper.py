@@ -33,7 +33,7 @@ def historical(title,player,pages=2):
     if not ident:return [],0,0,'Could not identify the player, year and card set from this listing title. Try a more specific search.'
     query=_short_query(title,player)
     pages=max(1,min(5,int(pages)))
-    cachekey=(query,pages)
+    cachekey=(query,pages,title.lower())
     if cachekey in CACHE and time.time()-CACHE[cachekey][0]<TTL:return CACHE[cachekey][1]
     today=datetime.datetime.now(datetime.timezone.utc).date()
     start=today.replace(year=today.year-3) if not (today.month==2 and today.day==29) else today.replace(year=today.year-3,day=28)
