@@ -1,16 +1,12 @@
-# Card Scout v1.6 — Soldgraph Only, Clean Build
+# Card Scout v1.9 — CompSniper history
 
-This build removes all Card API and manual Comp Library UI/code from the website.
+Uses `SERPAPI_API_KEY` for active eBay listings and `COMPSNIPER_API_KEY` for sold comps. `SOLDGRAPH_KEY` is not used.
 
-- SerpApi: active eBay listings only.
-- Soldgraph: sold comps only.
-- No active asking-price median is ever used as a market comp.
-- Soldgraph accepted Best Offer rows are excluded because Soldgraph documents that the displayed amount is the asking price, not the verified paid price.
-- Exact-card matching is stricter: known active year/product/parallel/serial/card number must also be identifiable and matching in a sold title; grade/grader and auto status are hard gates.
-- Up to 200 recently-sold rows are requested in one Soldgraph search.
-- Robust outlier filtering is applied before the median comp.
-- One exact sale is provisional and can never create a high Opportunity Score; 2+ matching sales are required for a strong deal.
-- The analysis page displays the sold listings used so the result can be audited.
+Deploy by uploading ZIP contents to your existing GitHub repository root; Render rebuilds automatically.
 
-Render environment required: `SERPAPI_API_KEY` and `SOLDGRAPH_KEY`.
-`THECARDAPI_KEY` is not referenced anywhere in this build.
+- `/find-deals` evaluates candidate listings with CompSniper historical sold results.
+- `/analyze` retrieves 1, 2, or 5 pages of CompSniper's up-to-three-year eBay research results (50 rows/page).
+- Exact single-unit matches only. Historical comps shown; last-180-day sales drive current valuation.
+- Each page costs one CompSniper API request; free plan is limited.
+- This is **not** an all-time sales database and results depend on seller titles and provider coverage.
+- No live CompSniper API test was possible without your private Render key.
