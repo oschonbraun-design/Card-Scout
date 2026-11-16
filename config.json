@@ -1,0 +1,30 @@
+{
+  "budget": {"min": 75, "max": 150, "currency": "USD"},
+  "scan_interval_seconds": 300,
+  "marketplace": "EBAY_US",
+  "deal_thresholds": {"watch": 0.20, "good": 0.25, "steal": 0.30},
+  "minimum_comps": 3,
+  "max_comp_age_days": 120,
+  "estimated_resale_fee_rate": 0.13,
+  "estimated_outbound_shipping": 5.0,
+  "minimum_estimated_profit": 15.0,
+  "minimum_match_confidence": 0.88,
+  "players": [
+    {"name":"JJ Wetherholt","sport":"MLB","queries":["JJ Wetherholt Bowman", "JJ Wetherholt auto", "Wetherholt PSA"]},
+    {"name":"Konnor Griffin","sport":"MLB","queries":["Konnor Griffin Bowman", "Konnor Griffin auto", "Griffin PSA"]},
+    {"name":"Kevin McGonigle","sport":"MLB","queries":["Kevin McGonigle Bowman", "McGonigle auto", "McGonigle PSA"]},
+    {"name":"Travis Bazzana","sport":"MLB","queries":["Travis Bazzana Bowman", "Bazzana auto", "Bazzana PSA"]},
+    {"name":"Bryce Eldridge","sport":"MLB","queries":["Bryce Eldridge Bowman", "Eldridge auto", "Eldridge PSA"]},
+    {"name":"Cooper Flagg","sport":"NBA","queries":["Cooper Flagg rookie", "Cooper Flagg Prizm", "Cooper Flagg PSA"]},
+    {"name":"Amen Thompson","sport":"NBA","queries":["Amen Thompson Prizm", "Amen Thompson Optic", "Amen Thompson PSA"]},
+    {"name":"Stephon Castle","sport":"NBA","queries":["Stephon Castle Prizm", "Stephon Castle Optic", "Stephon Castle PSA"]},
+    {"name":"Dylan Harper","sport":"NBA","queries":["Dylan Harper rookie", "Dylan Harper auto", "Dylan Harper PSA"]},
+    {"name":"Darryn Peterson","sport":"NBA","queries":["Darryn Peterson Bowman", "Darryn Peterson auto", "Darryn Peterson PSA"]},
+    {"name":"AJ Dybantsa","sport":"NBA","queries":["AJ Dybantsa Bowman", "AJ Dybantsa auto", "Dybantsa PSA"]},
+    {"name":"Caleb Williams","sport":"NFL","queries":["Caleb Williams Prizm rookie", "Caleb Williams Optic rookie", "Caleb Williams PSA"]},
+    {"name":"Drake Maye","sport":"NFL","queries":["Drake Maye Prizm rookie", "Drake Maye Optic rookie", "Drake Maye PSA"]},
+    {"name":"Jayden Daniels","sport":"NFL","queries":["Jayden Daniels Prizm rookie", "Jayden Daniels Optic rookie", "Jayden Daniels PSA"]},
+    {"name":"Fernando Mendoza","sport":"NFL","queries":["Fernando Mendoza rookie", "Fernando Mendoza auto", "Fernando Mendoza PSA"]},
+    {"name":"Jeremiyah Love","sport":"NFL","queries":["Jeremiyah Love rookie", "Jeremiyah Love auto", "Jeremiyah Love PSA"]}
+  ]
+}
