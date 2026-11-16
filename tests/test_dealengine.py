@@ -23,3 +23,16 @@ class DealTests(unittest.TestCase):
         self.assertEqual(evaluate_candidate({'title':T,'total':30},'Dylan Harper')['status'],'unverified')
 
 if __name__=='__main__':unittest.main()
+
+class IdentityRegressionTests(unittest.TestCase):
+    def test_base_card_without_number_is_valid(self):
+        from cardscanner.dealengine_identity import strict_identity
+        self.assertIsNotNone(strict_identity('2023 Panini Prizm CJ Stroud PSA 10','CJ Stroud'))
+    def test_number_mismatch_is_rejected(self):
+        from cardscanner.dealengine_identity import strict_identity, matching
+        a=strict_identity('2023 Panini Prizm CJ Stroud Silver #125 PSA 10','CJ Stroud')
+        self.assertFalse(matching(a,'2023 Panini Prizm CJ Stroud Silver #126 PSA 10'))
+    def test_parallel_mismatch_is_rejected(self):
+        from cardscanner.dealengine_identity import strict_identity, matching
+        a=strict_identity('2023 Panini Prizm CJ Stroud Silver PSA 10','CJ Stroud')
+        self.assertFalse(matching(a,'2023 Panini Prizm CJ Stroud Gold PSA 10'))

@@ -1,12 +1,15 @@
-# Card Scout v1.9 — CompSniper history
+# Card Scout v2.0 — Under-Comps Finder
 
-Uses `SERPAPI_API_KEY` for active eBay listings and `COMPSNIPER_API_KEY` for sold comps. `SOLDGRAPH_KEY` is not used.
+Deploy to Render with the existing GitHub project. Required environment variables: `SERPAPI_API_KEY` and `COMPSNIPER_API_KEY`. `SOLDGRAPH_KEY` is not used.
 
-Deploy by uploading ZIP contents to your existing GitHub repository root; Render rebuilds automatically.
+## What changed
+- Removed v1.9's mistaken requirement for a parallel or card number: ordinary base cards are now eligible.
+- Search uses shorter CompSniper queries to avoid requiring every title keyword to match.
+- Strict comparison still rejects known mismatches in year, product, parallel, grade, autograph, numbering, and player.
+- Under-Comps Finder examines the returned active listings and analyzes up to eight distinct low-priced card identities, flags only those clearing 25% below sold median, $15 estimated net profit, and 20% ROI.
+- All available matched sales are shown in the comp audit. Current value requires at least three matching sales within 180 days.
 
-- `/find-deals` evaluates candidate listings with CompSniper historical sold results.
-- `/analyze` retrieves 1, 2, or 5 pages of CompSniper's up-to-three-year eBay research results (50 rows/page).
-- Exact single-unit matches only. Historical comps shown; last-180-day sales drive current valuation.
-- Each page costs one CompSniper API request; free plan is limited.
-- This is **not** an all-time sales database and results depend on seller titles and provider coverage.
-- No live CompSniper API test was possible without your private Render key.
+## Limitations
+- A single scan is not a comprehensive market crawl. CompSniper historical requests are limited by your plan and the API's results. Eight candidates can use eight requests, and more if you open separate comp pages.
+- No live integration test was possible without the private API keys; review Render logs and returned API errors if your provider's response shape differs.
+- Title matching is conservative but cannot verify image-only parallels, altered cards, hidden condition, or listing fraud. Confirm photos and sales manually before purchase.

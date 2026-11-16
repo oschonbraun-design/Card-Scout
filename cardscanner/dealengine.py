@@ -47,27 +47,28 @@ def evaluate_candidate(item, player, fee_pct=.135, fulfillment=5.0):
     status='deal' if discount>=.25 and roi>=.20 and profit>=15 else 'pass'
     return {'status':status,'query':q,'comp':round(median,2),'discount':round(discount*100,1),
             'profit':round(profit,2),'roi':round(roi*100,1),'count':len(matches),
-            'sales':matches[:8],'reason': 'Meets discount, net-profit and ROI thresholds.' if status=='deal' else 'Fails discount or after-fee profit thresholds.'}
+            'sales':matches,'reason': 'Meets discount, net-profit and ROI thresholds.' if status=='deal' else 'Fails discount or after-fee profit thresholds.'}
 
-def scan_candidates(items, query, limit=4):
+def scan_candidates(items, query, limit=8):
     player=player_from_query(query)
-    # Remove leftover card-number and variant words from the user query; they are not player names.
-    player=re.sub(r'\b(?:\d+|refractor|variation|numbered|base|insert|autographed|autograph|gold|orange|teal|zebra|genesis|holo|wave|choice|ruby|jumbo|stained|glass)\b',' ',player,flags=re.I)
+    # A search for "Player Prizm Silver PSA 10" must not treat PSA as surname.
+    player=re.sub(r'\b(?:\d+|refractor|variation|numbered|base|insert|autographed|autograph|gold|orange|teal|zebra|genesis|holo|wave|choice|ruby|jumbo|stained|glass|silver|psa|sgc|bgs|cgc|rookie|rc|auto)\b',' ',player,flags=re.I)
     player=re.sub(r'\s+',' ',player).strip()
+    # Check different exact-card families, not merely the first four cheap listings.
+    # Limit API calls, but examine the full active search result set first.
     candidates=[]; skipped=0; seen=set()
-    for item in items:
-        identity=strict_identity(item['title'],player)
-        if not identity: skipped+=1; continue
-        key=sold_query(item['title'],player,identity).lower()
-        if key in seen: continue
-        seen.add(key); candidates.append(item)
-        if len(candidates)>=limit: break
+    for item in sorted(items,key=lambda x:float(x.get('total') or 1e9)):
+        identity=strict_identity(item.get('title',''),player)
+        if not identity:skipped+=1;continue
+        key=(identity['player'],identity['year'],identity['product'],identity['parallel'],identity['serial'],identity['grader'],identity['grade'],identity['auto'],identity['number'])
+        if key in seen:continue
+        seen.add(key);candidates.append(item)
+        if len(candidates)>=limit:break
     results=[]
     for item in candidates:
-        try: analysis=evaluate_candidate(item,player)
-        except Exception as e:
-            analysis={'status':'error','reason':str(e)}
+        try:analysis=evaluate_candidate(item,player)
+        except Exception as e:analysis={'status':'error','reason':str(e)}
         results.append({'item':item,'analysis':analysis})
-        if analysis['status']=='error' and ('quota' in analysis['reason'].lower() or '429' in analysis['reason']): break
-    results.sort(key=lambda x: (x['analysis']['status']=='deal', x['analysis'].get('roi',-999)),reverse=True)
-    return results, skipped
+        if analysis['status']=='error' and ('quota' in analysis['reason'].lower() or '429' in analysis['reason']):break
+    results.sort(key=lambda x:(x['analysis']['status']=='deal',x['analysis'].get('roi',-999)),reverse=True)
+    return results,skipped

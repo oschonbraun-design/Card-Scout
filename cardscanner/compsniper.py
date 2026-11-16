@@ -22,14 +22,15 @@ def _short_query(title,player):
     ident=strict_identity(title,player)
     if not ident:return None
     # Keep search short: research endpoint requires each keyword to be in the listing title.
-    bits=[player,str(ident['year']),str(ident['product'])]
+    product=ident['product'].replace('panini ','').replace('donruss ','').replace('topps ','').replace('bowman ','')
+    bits=[player,str(ident['year']),product]
     if ident['parallel']:bits.append(ident['parallel'])
     if ident['grader']!='raw':bits.extend([ident['grader'],ident['grade']])
     return ' '.join(str(x) for x in bits if x)[:190]
 
 def historical(title,player,pages=2):
     ident=strict_identity(title,player)
-    if not ident:return [],0,0,'Card identity is ambiguous. Cannot verify exact historical comps.'
+    if not ident:return [],0,0,'Could not identify the player, year and card set from this listing title. Try a more specific search.'
     query=_short_query(title,player)
     pages=max(1,min(5,int(pages)))
     cachekey=(query,pages)
